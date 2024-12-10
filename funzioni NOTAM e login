@@ -2,60 +2,97 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+import traceback
 import time
+
+
+def check_element_clickable(driver, xpath, timeout=3):
+    
+    is_clickable = True
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.XPATH, xpath))
+        )
+    except TimeoutException:
+        is_clickable = False
+    return is_clickable
+
 
 def login_to_webapp(driver, username, password, username_field_id, password_field_id, submit_button_id):
     """
-    Funzione per accedere a un'applicazione web inserendo username e password.
+    Effettua il login all'applicazione web.
     """
     try:
-        # Trova i campi e il pulsante usando i loro ID
         username_field = driver.find_element(By.ID, username_field_id)
         password_field = driver.find_element(By.ID, password_field_id)
         submit_button = driver.find_element(By.ID, submit_button_id)
 
-        # Inserisce username e password
         username_field.send_keys(username)
         password_field.send_keys(password)
-
-        # Clicca sul pulsante di login
         submit_button.click()
 
-        # Attendi che la pagina si carichi dopo il login (opzionale)
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, "//div[@class='media-body media-middle']"))
         )
         print("Login completato.")
     except Exception as e:
         print(f"Errore durante il login: {e}")
+        traceback.print_exc()
 
 
 def open_notam_create(driver):
     """
-    Funzione per navigare nella sezione NOTAM Office.
+    Naviga nella sezione NOTAM e clicca su 'Create'.
     """
+    notam_create_xpath = "//a[@ui-sref='app.notamOffice.notam.create']"
+    notam_xpath = "//a[contains(@class, 'sidebar-group-child-item')]//span[text()='NOTAM']"
+    notam_office_xpath = "//div[@class='media-body media-middle']//span[text()='NOTAM Office']"
+
     try:
-        # Trova l'elemento NOTAM Office e cliccalo
-        notam_office = driver.find_element(By.XPATH, "//div[@class='media-body media-middle']//span[text()='NOTAM Office']")
-        notam_office.click()
+        # Verifica se 'Create' è cliccabile
+        if check_element_clickable(driver, notam_create_xpath):
+            print("Elemento 'Create' trovato e cliccabile.")
+            notam_create = driver.find_element(By.XPATH, notam_create_xpath)
+            notam_create.click()
         
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//div[@class='media-body media-middle']//span[text()='NOTAM']"))
-        )
-        
-        notam = driver.find_element(By.XPATH, "//a[contains(@class, 'sidebar-group-child-item')]//span[text()='NOTAM']")
-        notam.click()
-        
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//div[@class='media-body media-middle']//span[text()='Create']"))
-        )
-        
-        notam_create = driver.find_element(By.XPATH, "//a[@ui-sref='app.notamOffice.notam.create']")
-        notam_create.click()
-        
-        print("Navigazione alla sezione NOTAM completata.")
+        # Se 'Create' non è cliccabile, controlla 'NOTAM'
+        elif check_element_clickable(driver, notam_xpath):
+            print("Espando 'NOTAM'.")
+            notam = driver.find_element(By.XPATH, notam_xpath)
+            notam.click()
+
+            # Attendi che 'Create' diventi cliccabile
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, notam_create_xpath))
+            )
+            notam_create = driver.find_element(By.XPATH, notam_create_xpath)
+            notam_create.click()
+
+        # Se 'NOTAM' non è cliccabile, espandi 'NOTAM Office'
+        else:
+            print("Espando 'NOTAM Office'.")
+            notam_office = driver.find_element(By.XPATH, notam_office_xpath)
+            notam_office.click()
+
+            # Attendi che 'NOTAM' diventi cliccabile
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, notam_xpath))
+            )
+            notam = driver.find_element(By.XPATH, notam_xpath)
+            notam.click()
+
+            # Attendi che 'Create' diventi cliccabile
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, notam_create_xpath))
+            )
+            notam_create = driver.find_element(By.XPATH, notam_create_xpath)
+            notam_create.click()
+
+        print("Navigazione completata con successo.")
     except Exception as e:
         print(f"Errore durante la navigazione a NOTAM Office: {e}")
+        traceback.print_exc()
 
 
 # Parametri
@@ -66,16 +103,20 @@ username_field_id = 'userLogin'
 password_field_id = 'password'
 submit_button_id = 'doLogin'
 
-# Inizializza il driver (usa Chrome come esempio)
+# Inizializza il driver
 driver = webdriver.Chrome()
 driver.get(url)
 
-time.sleep(10)
-
-login_to_webapp(driver, username, password, username_field_id, password_field_id, submit_button_id)
-open_notam_create(driver)
-
-# Termina il driver
-input('Premi Invio per uscire.')
-driver.quit()
-#test
+try:
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.ID, username_field_id))
+    )
+    time.sleep(2)
+    login_to_webapp(driver, username, password, username_field_id, password_field_id, submit_button_id)
+    open_notam_create(driver)
+except Exception as e:
+    print(f"Errore generale: {e}")
+    traceback.print_exc()
+finally:
+    input('Premi Invio per uscire.')
+    driver.quit()
